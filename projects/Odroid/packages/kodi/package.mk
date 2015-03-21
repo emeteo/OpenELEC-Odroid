@@ -17,7 +17,7 @@
 ################################################################################
 
 PKG_NAME="kodi"
-PKG_VERSION="14-b5dbdb5"
+PKG_VERSION="14-085163e"
 PKG_REV="1"
 PKG_ARCH="any"
 PKG_LICENSE="GPL"
@@ -251,7 +251,7 @@ fi
 
 if [ ! "$KODIPLAYER_DRIVER" = default ]; then
   if [ "$KODIPLAYER_DRIVER" = odroid-mfc ]; then
-    KODI_CODEC="--enable-codec=mfc"
+    KODI_CODEC="--enable-codec=mfc --enable-mfc"
   elif [ "$KODIPLAYER_DRIVER" = odroid-amcodec ]; then
     KODI_CODEC="--enable-codec=amcodec"
   fi
