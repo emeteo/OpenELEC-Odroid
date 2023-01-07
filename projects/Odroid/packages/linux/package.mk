@@ -19,15 +19,15 @@
 PKG_NAME="linux"
 case $DEVICE in
   U2)  PKG_VERSION="3.8.13+0c5ca23" ;;
-  XU3) PKG_VERSION="3.10.60+d37e8a3" ;;
-  C1)  PKG_VERSION="3.10.72+312f9be" ;;
+  XU3) PKG_VERSION="3.10.82+f4401ce" ;;
+  C1)  PKG_VERSION="3.10.79+195f620" ;;
 esac
 PKG_URL="$ODROID_MIRROR/$PKG_NAME-$PKG_VERSION.tar.xz"
 PKG_REV="1"
 PKG_ARCH="any"
 PKG_LICENSE="GPL"
 PKG_SITE="http://www.kernel.org"
-PKG_DEPENDS_HOST="ccache:host"
+PKG_DEPENDS_HOST="linux-api-headers:host"
 PKG_DEPENDS_TARGET="toolchain cpio:host kmod:host pciutils xz:host wireless-regdb"
 PKG_DEPENDS_INIT="toolchain"
 PKG_NEED_UNPACK="$LINUX_DEPENDS"
@@ -61,22 +61,15 @@ post_patch() {
 
   cp $PKG_BUILD/arch/arm/configs/$KERNEL_CFG_FILE $PKG_BUILD/.config
 
-  # enable SquashFS
-  sed -i -e "s|^CONFIG_SQUASHFS[[:space:]]*=.*$|CONFIG_SQUASHFS=y|" \
-         -e "s|^# CONFIG_SQUASHFS[[:space:]].*$|CONFIG_SQUASHFS=y|" $PKG_BUILD/.config
-  # enable all compressions of SquashFS and extended attributes
-  for A in XATTR ZLIB LZO XZ ; do echo CONFIG_SQUASHFS_$A=y >> $PKG_BUILD/.config ; done
-  # disable possible other SquashFS settings
-  for A in 4K_DEVBLK_SIZE EMBEDDED; do echo "# CONFIG_SQUASHFS_$A is not set" >> $PKG_BUILD/.config ; done
-  # enable VFATFS
-  sed -i -e "s|^CONFIG_VFAT_FS[[:space:]]*=.*$|CONFIG_VFAT_FS=y|" \
-         -e "s|^# CONFIG_VFAT_FS[[:space:]].*$|CONFIG_VFAT_FS=y|" $PKG_BUILD/.config
-  # enable Native Language Support Codepage 437 (default used by vfat)
-  sed -i -e "s|^CONFIG_NLS_CODEPAGE_437[[:space:]]*=.*$|CONFIG_NLS_CODEPAGE_437=y|" \
-         -e "s|^# CONFIG_NLS_CODEPAGE_437[[:space:]].*$|CONFIG_NLS_CODEPAGE_437=y|" $PKG_BUILD/.config
-  # enable /proc/config.gz (not really needed, but nice)
-  sed -i -e "s|^CONFIG_IKCONFIG_PROC[[:space:]]*=.*$|CONFIG_IKCONFIG_PROC=y|" \
-         -e "s|^# CONFIG_IKCONFIG_PROC[[:space:]].*$|CONFIG_IKCONFIG_PROC=y|" $PKG_BUILD/.config
+  # allow setting global linux config options and device specific
+  if [ -f $PROJECT_DIR/$PROJECT/linux/linux.conf ]; then
+    cat $PROJECT_DIR/$PROJECT/linux/linux.conf >> \
+      $PKG_BUILD/.config
+  fi
+  if [ -f $PROJECT_DIR/$PROJECT/devices/$DEVICE/linux/linux.conf ]; then
+    cat $PROJECT_DIR/$PROJECT/devices/$DEVICE/linux/linux.conf >> \
+      $PKG_BUILD/.config
+  fi
 
   # disable PPP support if not enabled
   if [ ! "$PPTP_SUPPORT" = yes ]; then
@@ -111,13 +104,11 @@ post_patch() {
 }
 
 make_host() {
-  make ARCH=$TARGET_ARCH headers_check || :
+  : # do nothing
 }
 
 makeinstall_host() {
-  make ARCH=$TARGET_ARCH INSTALL_HDR_PATH=dest headers_install || :
-  mkdir -p $SYSROOT_PREFIX/usr/include
-    cp -R dest/include/* $SYSROOT_PREFIX/usr/include
+  : # do nothing
 }
 
 pre_make_target() {
@@ -132,8 +123,8 @@ pre_make_target() {
 }
 
 make_target() {
-  LDFLAGS="" make modules
-  LDFLAGS="" make INSTALL_MOD_PATH=$INSTALL DEPMOD="$ROOT/$TOOLCHAIN/bin/depmod" modules_install
+  LDFLAGS="" CFLAGS="" make modules
+  LDFLAGS="" CFLAGS="" make INSTALL_MOD_PATH=$INSTALL DEPMOD="$ROOT/$TOOLCHAIN/bin/depmod" modules_install
   rm -f $INSTALL/lib/modules/*/build
   rm -f $INSTALL/lib/modules/*/source
 
@@ -143,11 +134,11 @@ make_target() {
 
   if [ "$BOOTLOADER" = "u-boot" -a -n "$KERNEL_UBOOT_EXTRA_TARGET" ]; then
     for extra_target in "$KERNEL_UBOOT_EXTRA_TARGET"; do
-      LDFLAGS="" make $extra_target
+      LDFLAGS="" CFLAGS=""make $extra_target
     done
   fi
 
-  LDFLAGS="" make $KERNEL_IMAGE $KERNEL_MAKE_EXTRACMD
+  LDFLAGS="" CFLAGS="" make $KERNEL_IMAGE $KERNEL_MAKE_EXTRACMD
 
   if [ "$BUILD_ANDROID_BOOTIMG" = "yes" ]; then
     LDFLAGS="" mkbootimg --kernel arch/arm/boot/$KERNEL_IMAGE --ramdisk $ROOT/$BUILD/image/initramfs.cpio \
